@@ -21,14 +21,27 @@ go get github.com/leafo/url2gs
 go install github.com/leafo/url2gs/url2gs
 ```
 
+```bash
+$ url2gs -help
+Usage: url2gs [OPTIONS] http://URL gs://BUCKET/KEY
+
+Options:
+  -acl="public-read": ACL of uploaded file
+  -config="url2gs.json": Path to json config file
+  -content_disposition="": Content disposition of uploaded file
+  -content_type="": Content type of uploaded file (defaults to content type from HTTP request)
+  -max_bytes=0: Max bytes to copy (0 is no limit)
+
+```
+
 Create a config file:
 
 `url2gs.json`:
 
 ```json
 {
-	"PrivateKeyPath": "path/to/service/key.pem",
-	"ClientEmail": "111111111111@developer.gserviceaccount.com"
+  "PrivateKeyPath": "path/to/service/key.pem",
+  "ClientEmail": "111111111111@developer.gserviceaccount.com"
 }
 ```
 
