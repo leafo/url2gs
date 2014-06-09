@@ -1,4 +1,4 @@
-package gs2url
+package main
 
 import (
 	"encoding/json"
@@ -10,8 +10,8 @@ var DefaultConfigFname = "url2gs.json"
 
 type Config struct {
 	PrivateKeyPath string
-	ClientEmail string
-	Bucket string
+	ClientEmail    string
+	Bucket         string
 }
 
 func LoadConfig(fname string) *Config {

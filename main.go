@@ -1,30 +1,28 @@
 package main
 
 import (
-	"fmt"
-	"strconv"
-	"log"
-	"io"
-	"os"
-	"flag"
-	"regexp"
 	"errors"
-	. "github.com/leafo/url2gs"
+	"flag"
+	"fmt"
 	"github.com/leafo/zip_server"
+	"io"
+	"log"
 	"net/http"
+	"os"
+	"regexp"
+	"strconv"
 )
-
 
 type GsUrl struct {
 	Bucket string
-	Key string
+	Key    string
 }
 
 var (
-	configFname string
-	maxBytes int
-	acl string
-	contentDisposition string
+	configFname         string
+	maxBytes            int
+	acl                 string
+	contentDisposition  string
 	contentTypeOverride string
 )
 
@@ -41,7 +39,7 @@ func init() {
 	}
 }
 
-type LimitedReader func (p []byte) (int, error)
+type LimitedReader func(p []byte) (int, error)
 
 func (fn LimitedReader) Read(p []byte) (int, error) {
 	return fn(p)
@@ -50,7 +48,7 @@ func (fn LimitedReader) Read(p []byte) (int, error) {
 // wraps reader to fail if it reads too many bytes
 func NewLimitedReader(reader io.Reader, maxBytes int) LimitedReader {
 	remainingBytes := maxBytes
-	return func (p []byte) (int, error) {
+	return func(p []byte) (int, error) {
 		bytesRead, err := reader.Read(p)
 		remainingBytes -= bytesRead
 
@@ -72,7 +70,7 @@ func ParseGsUrl(url string) (GsUrl, error) {
 
 	return GsUrl{
 		Bucket: match[1],
-		Key: match[2],
+		Key:    match[2],
 	}, nil
 }
 
@@ -98,7 +96,7 @@ func main() {
 
 	storage := zip_server.StorageClient{
 		PrivateKeyPath: config.PrivateKeyPath,
-		ClientEmail: config.ClientEmail,
+		ClientEmail:    config.ClientEmail,
 	}
 
 	client := http.Client{}
@@ -112,7 +110,6 @@ func main() {
 	if res.StatusCode != 200 {
 		log.Fatal("failed to fetch file, status: ", res.StatusCode)
 	}
-
 
 	contentType := contentTypeOverride
 
@@ -148,9 +145,9 @@ func main() {
 	log.Print("ACL: ", acl)
 	log.Print("Content-Disposition: ", contentDisposition)
 
-	err = storage.PutFileWithSetup(target.Bucket, target.Key, body, func (req *http.Request) error {
+	err = storage.PutFileWithSetup(target.Bucket, target.Key, body, func(req *http.Request) error {
 		req.Header.Add("Content-Type", contentType)
-		if (contentDisposition != "") {
+		if contentDisposition != "" {
 			req.Header.Add("Content-Disposition", contentDisposition)
 		}
 
@@ -162,4 +159,3 @@ func main() {
 		log.Fatal(err.Error())
 	}
 }
-
