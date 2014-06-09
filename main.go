@@ -13,7 +13,7 @@ import (
 	"strconv"
 )
 
-type GsUrl struct {
+type gsURL struct {
 	Bucket string
 	Key    string
 }
@@ -27,7 +27,7 @@ var (
 )
 
 func init() {
-	flag.StringVar(&configFname, "config", DefaultConfigFname, "Path to json config file")
+	flag.StringVar(&configFname, "config", defaultConfigFname, "Path to json config file")
 	flag.IntVar(&maxBytes, "max_bytes", 0, "Max bytes to copy (0 is no limit)")
 	flag.StringVar(&acl, "acl", "public-read", "ACL of uploaded file")
 	flag.StringVar(&contentDisposition, "content_disposition", "", "Content disposition of uploaded file")
@@ -39,14 +39,14 @@ func init() {
 	}
 }
 
-type LimitedReader func(p []byte) (int, error)
+type limitedReader func(p []byte) (int, error)
 
-func (fn LimitedReader) Read(p []byte) (int, error) {
+func (fn limitedReader) Read(p []byte) (int, error) {
 	return fn(p)
 }
 
 // wraps reader to fail if it reads too many bytes
-func NewLimitedReader(reader io.Reader, maxBytes int) LimitedReader {
+func newLimitedReader(reader io.Reader, maxBytes int) limitedReader {
 	remainingBytes := maxBytes
 	return func(p []byte) (int, error) {
 		bytesRead, err := reader.Read(p)
@@ -60,15 +60,15 @@ func NewLimitedReader(reader io.Reader, maxBytes int) LimitedReader {
 	}
 }
 
-func ParseGsUrl(url string) (GsUrl, error) {
+func parseGsURL(url string) (gsURL, error) {
 	patt := regexp.MustCompile("^gs://([^/]+)/(.*)$")
 	match := patt.FindStringSubmatch(url)
 
 	if len(match) == 0 {
-		return GsUrl{}, errors.New("invalid gs:// URL syntax: " + url)
+		return gsURL{}, errors.New("invalid gs:// URL syntax: " + url)
 	}
 
-	return GsUrl{
+	return gsURL{
 		Bucket: match[1],
 		Key:    match[2],
 	}, nil
@@ -76,7 +76,7 @@ func ParseGsUrl(url string) (GsUrl, error) {
 
 func main() {
 	flag.Parse()
-	config := LoadConfig(configFname)
+	config := loadConfig(configFname)
 
 	args := flag.Args()
 
@@ -88,7 +88,7 @@ func main() {
 		log.Fatal("missing Cloud Storage URL")
 	}
 
-	target, err := ParseGsUrl(args[1])
+	target, err := parseGsURL(args[1])
 
 	if err != nil {
 		log.Fatal(err.Error())
@@ -138,7 +138,7 @@ func main() {
 			}
 		}
 
-		body = NewLimitedReader(body, maxBytes)
+		body = newLimitedReader(body, maxBytes)
 	}
 
 	log.Print("Uploading ", contentType, " (size: ", contentLengthStr, ") to ", target.Key)
