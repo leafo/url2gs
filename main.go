@@ -121,7 +121,7 @@ func main() {
 		contentType = "application/octet-stream"
 	}
 
-	var body io.Reader = res.Body
+	body := io.Reader(res.Body)
 
 	contentLengthStr := res.Header.Get("Content-Length")
 	if maxBytes > 0 {
