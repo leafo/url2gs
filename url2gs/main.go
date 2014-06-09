@@ -25,6 +25,7 @@ var (
 	maxBytes int
 	acl string
 	contentDisposition string
+	contentTypeOverride string
 )
 
 func init() {
@@ -32,6 +33,7 @@ func init() {
 	flag.IntVar(&maxBytes, "max_bytes", 0, "Max bytes to copy (0 is no limit)")
 	flag.StringVar(&acl, "acl", "public-read", "ACL of uploaded file")
 	flag.StringVar(&contentDisposition, "content_disposition", "", "Content disposition of uploaded file")
+	flag.StringVar(&contentTypeOverride, "content_type", "", "Content type of uploaded file (defaults to content type from HTTP request)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: url2gs [OPTIONS] http://URL gs://BUCKET/KEY\n\nOptions:\n")
@@ -111,15 +113,21 @@ func main() {
 		log.Fatal("failed to fetch file, status: ", res.StatusCode)
 	}
 
-	contentType := res.Header.Get("Content-Type")
-	contentLength, err := strconv.Atoi(res.Header.Get("Content-Length"))
 
-	if err != nil {
-		log.Fatal("missing content length from response")
+	contentType := contentTypeOverride
+
+	if contentType == "" {
+		contentType = res.Header.Get("Content-Type")
 	}
 
 	if contentType == "" {
 		contentType = "application/octet-stream"
+	}
+
+	contentLength, err := strconv.Atoi(res.Header.Get("Content-Length"))
+
+	if err != nil {
+		log.Fatal("missing content length from response")
 	}
 
 	var body io.Reader = res.Body
