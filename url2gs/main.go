@@ -2,13 +2,15 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"log"
-	"os"
+	"io"
 	"flag"
 	"regexp"
 	"errors"
 	. "github.com/leafo/url2gs"
 	"github.com/leafo/zip_server"
+	"net/http"
 )
 
 
@@ -29,10 +31,30 @@ func init() {
 	flag.IntVar(&maxBytes, "max_bytes", 0, "Max bytes to copy")
 }
 
+type LimitedReader func (p []byte) (int, error)
+
+func (fn LimitedReader) Read(p []byte) (int, error) {
+	return fn(p)
+}
+
+// wraps reader to fail if it reads too many bytes
+func NewLimitedReader(reader io.Reader, maxBytes int) LimitedReader {
+	remainingBytes := maxBytes
+	return func (p []byte) (int, error) {
+		bytesRead, err := reader.Read(p)
+		remainingBytes -= bytesRead
+
+		if remainingBytes < 0 {
+			return bytesRead, fmt.Errorf("limited reader passed limit %d", maxBytes)
+		}
+
+		return bytesRead, err
+	}
+}
+
 func ParseGsUrl(url string) (GsUrl, error) {
 	patt := regexp.MustCompile("^gs://([^/]+)/(.*)$")
 	match := patt.FindStringSubmatch(url)
-	fmt.Println("got matches", len(match))
 
 	if len(match) == 0 {
 		return GsUrl{}, errors.New("invalid gs:// URL syntax: " + url)
@@ -48,15 +70,17 @@ func main() {
 	flag.Parse()
 	config := LoadConfig(configFname)
 
-	if len(os.Args) < 2 {
+	args := flag.Args()
+
+	if len(args) < 1 {
 		log.Fatal("missing URL" + usage)
 	}
 
-	if len(os.Args) < 3 {
+	if len(args) < 2 {
 		log.Fatal("missing Cloud Storage URL" + usage)
 	}
 
-	target, err := ParseGsUrl(os.Args[2])
+	target, err := ParseGsUrl(args[1])
 
 	if err != nil {
 		log.Fatal(err.Error() + usage)
@@ -67,6 +91,47 @@ func main() {
 		ClientEmail: config.ClientEmail,
 	}
 
-	fmt.Println("okay:", target, storage)
+	client := http.Client{}
+	res, err := client.Get(args[0])
+	defer res.Body.Close()
+
+	if err != nil {
+		log.Fatal("failed to create http client: " + err.Error())
+	}
+
+	if res.StatusCode != 200 {
+		log.Fatal("failed to fetch file, status: ", res.StatusCode)
+	}
+
+	contentType := res.Header.Get("Content-Type")
+	contentLength, err := strconv.Atoi(res.Header.Get("Content-Length"))
+
+	if err != nil {
+		log.Fatal("missing content length from response")
+	}
+
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	var body io.Reader = res.Body
+
+	if maxBytes > 0 {
+		log.Print("setting max size to ", maxBytes)
+
+		if contentLength > maxBytes {
+			log.Fatal("content length greater than max size (", contentLength, " > ", maxBytes, ")")
+		}
+
+		body = NewLimitedReader(body, maxBytes)
+	}
+
+	log.Print("Uploading ", contentType, " (size: ", res.Header.Get("Content-Length"), ") to ", target.Key)
+
+	err = storage.PutFile(target.Bucket, target.Key, body, contentType)
+
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }
 
