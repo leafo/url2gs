@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"log"
 	"io"
+	"os"
 	"flag"
 	"regexp"
 	"errors"
@@ -22,13 +23,20 @@ type GsUrl struct {
 var (
 	configFname string
 	maxBytes int
+	acl string
+	contentDisposition string
 )
-
-var usage = "\nUsage: url2gs [-max_bytes=MAX] http://URL gs://BUCKET/KEY"
 
 func init() {
 	flag.StringVar(&configFname, "config", DefaultConfigFname, "Path to json config file")
-	flag.IntVar(&maxBytes, "max_bytes", 0, "Max bytes to copy")
+	flag.IntVar(&maxBytes, "max_bytes", 0, "Max bytes to copy (0 is no limit)")
+	flag.StringVar(&acl, "acl", "public-read", "ACL of uploaded file")
+	flag.StringVar(&contentDisposition, "content_disposition", "", "Content disposition of uploaded file")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: url2gs [OPTIONS] http://URL gs://BUCKET/KEY\n\nOptions:\n")
+		flag.PrintDefaults()
+	}
 }
 
 type LimitedReader func (p []byte) (int, error)
@@ -73,17 +81,17 @@ func main() {
 	args := flag.Args()
 
 	if len(args) < 1 {
-		log.Fatal("missing URL" + usage)
+		log.Fatal("missing URL")
 	}
 
 	if len(args) < 2 {
-		log.Fatal("missing Cloud Storage URL" + usage)
+		log.Fatal("missing Cloud Storage URL")
 	}
 
 	target, err := ParseGsUrl(args[1])
 
 	if err != nil {
-		log.Fatal(err.Error() + usage)
+		log.Fatal(err.Error())
 	}
 
 	storage := zip_server.StorageClient{
@@ -127,8 +135,18 @@ func main() {
 	}
 
 	log.Print("Uploading ", contentType, " (size: ", res.Header.Get("Content-Length"), ") to ", target.Key)
+	log.Print("ACL: ", acl)
+	log.Print("Content-Disposition: ", contentDisposition)
 
-	err = storage.PutFile(target.Bucket, target.Key, body, contentType)
+	err = storage.PutFileWithSetup(target.Bucket, target.Key, body, func (req *http.Request) error {
+		req.Header.Add("Content-Type", contentType)
+		if (contentDisposition != "") {
+			req.Header.Add("Content-Disposition", contentDisposition)
+		}
+
+		req.Header.Add("x-goog-acl", acl)
+		return nil
+	})
 
 	if err != nil {
 		log.Fatal(err.Error())
