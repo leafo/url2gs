@@ -124,25 +124,27 @@ func main() {
 		contentType = "application/octet-stream"
 	}
 
-	contentLength, err := strconv.Atoi(res.Header.Get("Content-Length"))
-
-	if err != nil {
-		log.Fatal("missing content length from response")
-	}
-
 	var body io.Reader = res.Body
 
+	contentLengthStr := res.Header.Get("Content-Length")
 	if maxBytes > 0 {
 		log.Print("setting max size to ", maxBytes)
+		if contentLengthStr != "" {
+			contentLength, err := strconv.Atoi(contentLengthStr)
 
-		if contentLength > maxBytes {
-			log.Fatal("content length greater than max size (", contentLength, " > ", maxBytes, ")")
+			if err != nil {
+				log.Fatal("invalid content length from response")
+			}
+
+			if contentLength > maxBytes {
+				log.Fatal("content length greater than max size (", contentLength, " > ", maxBytes, ")")
+			}
 		}
 
 		body = NewLimitedReader(body, maxBytes)
 	}
 
-	log.Print("Uploading ", contentType, " (size: ", res.Header.Get("Content-Length"), ") to ", target.Key)
+	log.Print("Uploading ", contentType, " (size: ", contentLengthStr, ") to ", target.Key)
 	log.Print("ACL: ", acl)
 	log.Print("Content-Disposition: ", contentDisposition)
 
