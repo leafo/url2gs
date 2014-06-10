@@ -1,4 +1,4 @@
-package gs2url
+package main
 
 import (
 	"encoding/json"
@@ -6,27 +6,27 @@ import (
 	"log"
 )
 
-var DefaultConfigFname = "url2gs.json"
+var defaultConfigFname = "url2gs.json"
 
-type Config struct {
+type config struct {
 	PrivateKeyPath string
-	ClientEmail string
-	Bucket string
+	ClientEmail    string
+	Bucket         string
 }
 
-func LoadConfig(fname string) *Config {
+func loadConfig(fname string) *config {
 	jsonBlob, err := ioutil.ReadFile(fname)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	config := Config{}
-	err = json.Unmarshal(jsonBlob, &config)
+	c := config{}
+	err = json.Unmarshal(jsonBlob, &c)
 
 	if err != nil {
 		log.Fatal("Failed parsing config: " + fname + ": " + err.Error())
 	}
 
-	return &config
+	return &c
 }

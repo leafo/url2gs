@@ -18,7 +18,6 @@ Install
 
 ```bash
 go get github.com/leafo/url2gs
-go install github.com/leafo/url2gs/url2gs
 ```
 
 ```bash

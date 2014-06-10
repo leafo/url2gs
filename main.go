@@ -1,35 +1,33 @@
 package main
 
 import (
-	"fmt"
-	"strconv"
-	"log"
-	"io"
-	"os"
-	"flag"
-	"regexp"
 	"errors"
-	. "github.com/leafo/url2gs"
+	"flag"
+	"fmt"
 	"github.com/leafo/zip_server"
+	"io"
+	"log"
 	"net/http"
+	"os"
+	"regexp"
+	"strconv"
 )
 
-
-type GsUrl struct {
+type gsURL struct {
 	Bucket string
-	Key string
+	Key    string
 }
 
 var (
-	configFname string
-	maxBytes int
-	acl string
-	contentDisposition string
+	configFname         string
+	maxBytes            int
+	acl                 string
+	contentDisposition  string
 	contentTypeOverride string
 )
 
 func init() {
-	flag.StringVar(&configFname, "config", DefaultConfigFname, "Path to json config file")
+	flag.StringVar(&configFname, "config", defaultConfigFname, "Path to json config file")
 	flag.IntVar(&maxBytes, "max_bytes", 0, "Max bytes to copy (0 is no limit)")
 	flag.StringVar(&acl, "acl", "public-read", "ACL of uploaded file")
 	flag.StringVar(&contentDisposition, "content_disposition", "", "Content disposition of uploaded file")
@@ -41,16 +39,16 @@ func init() {
 	}
 }
 
-type LimitedReader func (p []byte) (int, error)
+type limitedReader func(p []byte) (int, error)
 
-func (fn LimitedReader) Read(p []byte) (int, error) {
+func (fn limitedReader) Read(p []byte) (int, error) {
 	return fn(p)
 }
 
 // wraps reader to fail if it reads too many bytes
-func NewLimitedReader(reader io.Reader, maxBytes int) LimitedReader {
+func newLimitedReader(reader io.Reader, maxBytes int) limitedReader {
 	remainingBytes := maxBytes
-	return func (p []byte) (int, error) {
+	return func(p []byte) (int, error) {
 		bytesRead, err := reader.Read(p)
 		remainingBytes -= bytesRead
 
@@ -62,23 +60,23 @@ func NewLimitedReader(reader io.Reader, maxBytes int) LimitedReader {
 	}
 }
 
-func ParseGsUrl(url string) (GsUrl, error) {
+func parseGsURL(url string) (gsURL, error) {
 	patt := regexp.MustCompile("^gs://([^/]+)/(.*)$")
 	match := patt.FindStringSubmatch(url)
 
 	if len(match) == 0 {
-		return GsUrl{}, errors.New("invalid gs:// URL syntax: " + url)
+		return gsURL{}, errors.New("invalid gs:// URL syntax: " + url)
 	}
 
-	return GsUrl{
+	return gsURL{
 		Bucket: match[1],
-		Key: match[2],
+		Key:    match[2],
 	}, nil
 }
 
 func main() {
 	flag.Parse()
-	config := LoadConfig(configFname)
+	config := loadConfig(configFname)
 
 	args := flag.Args()
 
@@ -90,7 +88,7 @@ func main() {
 		log.Fatal("missing Cloud Storage URL")
 	}
 
-	target, err := ParseGsUrl(args[1])
+	target, err := parseGsURL(args[1])
 
 	if err != nil {
 		log.Fatal(err.Error())
@@ -98,7 +96,7 @@ func main() {
 
 	storage := zip_server.StorageClient{
 		PrivateKeyPath: config.PrivateKeyPath,
-		ClientEmail: config.ClientEmail,
+		ClientEmail:    config.ClientEmail,
 	}
 
 	client := http.Client{}
@@ -113,7 +111,6 @@ func main() {
 		log.Fatal("failed to fetch file, status: ", res.StatusCode)
 	}
 
-
 	contentType := contentTypeOverride
 
 	if contentType == "" {
@@ -124,7 +121,7 @@ func main() {
 		contentType = "application/octet-stream"
 	}
 
-	var body io.Reader = res.Body
+	body := io.Reader(res.Body)
 
 	contentLengthStr := res.Header.Get("Content-Length")
 	if maxBytes > 0 {
@@ -141,16 +138,16 @@ func main() {
 			}
 		}
 
-		body = NewLimitedReader(body, maxBytes)
+		body = newLimitedReader(body, maxBytes)
 	}
 
 	log.Print("Uploading ", contentType, " (size: ", contentLengthStr, ") to ", target.Key)
 	log.Print("ACL: ", acl)
 	log.Print("Content-Disposition: ", contentDisposition)
 
-	err = storage.PutFileWithSetup(target.Bucket, target.Key, body, func (req *http.Request) error {
+	err = storage.PutFileWithSetup(target.Bucket, target.Key, body, func(req *http.Request) error {
 		req.Header.Add("Content-Type", contentType)
-		if (contentDisposition != "") {
+		if contentDisposition != "" {
 			req.Header.Add("Content-Disposition", contentDisposition)
 		}
 
@@ -162,4 +159,3 @@ func main() {
 		log.Fatal(err.Error())
 	}
 }
-
